@@ -1,97 +1,109 @@
 import os
 import streamlit as st
 import base64
-from openai import OpenAI
 import openai
-import tensorflow as tf
-from PIL import Image, ImageOps
+from openai import OpenAI
+from PIL import Image
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 from streamlit_drawable_canvas import st_canvas
 
-Expert=" "
-profile_imgenh=" "
-
-# 🎨 Fuente bonita
-st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500&display=swap" rel="stylesheet">
-""", unsafe_allow_html=True)
-
-# 🎨 Título bonito centrado
-st.markdown("""
-<h1 style='text-align: center; font-family: "Fredoka", sans-serif; color: #6C63FF;'>
-🧠✨ Tablero Inteligente
-</h1>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<p style='text-align: center; font-size:18px;'>
-Dibuja lo que quieras y deja que la IA interprete tu creatividad 🎨
-</p>
-""", unsafe_allow_html=True)
-
-
-def encode_image_to_base64(image_path):
-    try:
-        with open(image_path, "rb") as image_file:
-            encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
-            return encoded_image
-    except FileNotFoundError:
-        return "Error: La imagen no se encontró en la ruta especificada."
-
-
-# Streamlit config
-st.set_page_config(page_title='Tablero Inteligente')
-
-with st.sidebar:
-    st.subheader("Acerca de:")
-    st.write("Esta aplicación permite que una IA interprete tus dibujos.")
-
-    # 🎨 Personalización del marcador
-    stroke_width = st.slider('Grosor del marcador', 1, 30, 5)
-    stroke_color = st.color_picker("Color del marcador", "#000000")
-
-st.subheader("Dibuja tu boceto y presiona el botón para analizarlo")
-
-# Canvas config
-drawing_mode = "freedraw"
-bg_color = '#FFFFFF'
-
-canvas_result = st_canvas(
-    fill_color="rgba(255, 165, 0, 0.3)",
-    stroke_width=stroke_width,
-    stroke_color=stroke_color,  # 👈 ahora es dinámico
-    background_color=bg_color,
-    height=300,
-    width=400,
-    drawing_mode=drawing_mode,
-    key="canvas",
+# ---------------- CONFIG ----------------
+st.set_page_config(
+    page_title='🎨 Tablero Inteligente',
+    page_icon='🎨',
+    layout="wide"
 )
 
-# API KEY
-ke = st.text_input('Ingresa tu Clave')
-os.environ['OPENAI_API_KEY'] = ke
-api_key = os.environ['OPENAI_API_KEY']
+# ---------------- CSS ----------------
+st.markdown("""
+<style>
+.stApp {
+    background: linear-gradient(135deg, #1f1c2c, #928dab);
+    color: white;
+}
 
-client = OpenAI(api_key=api_key)
+/* Título */
+.title {
+    font-size: 42px;
+    font-weight: bold;
+    text-align: center;
+    animation: fadeIn 1.5s ease-in-out;
+}
 
-analyze_button = st.button("Analiza la imagen", type="secondary")
+/* Animación */
+@keyframes fadeIn {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}
 
-# Procesamiento
+/* Tarjeta */
+.card {
+    background-color: #2b2b2b;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0px 0px 25px rgba(0,0,0,0.4);
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- FUNCIONES ----------------
+def encode_image_to_base64(image_path):
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
+
+# ---------------- UI ----------------
+st.markdown('<div class="title">🧠 Tablero Inteligente con IA</div>', unsafe_allow_html=True)
+st.write("Dibuja algo y deja que la IA lo interprete ✨")
+
+# ---------------- SIDEBAR ----------------
+with st.sidebar:
+    st.header("⚙️ Configuración")
+
+    st.subheader("🖌️ Dibujo")
+    stroke_width = st.slider('Grosor', 1, 30, 5)
+
+    st.subheader("🔐 API")
+    api_key = st.text_input('Ingresa tu API Key', type="password")
+
+# ---------------- CANVAS ----------------
+col1, col2, col3 = st.columns([1,2,1])
+
+with col2:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 165, 0, 0.3)",
+        stroke_width=stroke_width,
+        stroke_color="#000000",
+        background_color="#FFFFFF",
+        height=300,
+        width=400,
+        drawing_mode="freedraw",
+        key="canvas",
+    )
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ---------------- BOTÓN ----------------
+analyze_button = st.button("🔍 Analizar dibujo")
+
+# ---------------- PROCESAMIENTO ----------------
 if canvas_result.image_data is not None and api_key and analyze_button:
 
-    with st.spinner("Analizando ..."):
-        input_numpy_array = np.array(canvas_result.image_data)
-        input_image = Image.fromarray(input_numpy_array.astype('uint8'),'RGBA')
-        input_image.save('img.png')
-        
-        base64_image = encode_image_to_base64("img.png")
-        prompt_text = "Describe en español brevemente la imagen"
+    os.environ['OPENAI_API_KEY'] = api_key
+    client = OpenAI(api_key=api_key)
 
+    with st.spinner("🧠 Analizando imagen..."):
         try:
-            full_response = ""
-            message_placeholder = st.empty()
+            # Convertir imagen
+            input_array = np.array(canvas_result.image_data)
+            image = Image.fromarray(input_array.astype('uint8'), 'RGBA')
+            image.save('img.png')
+
+            # Base64
+            base64_image = encode_image_to_base64("img.png")
+
+            prompt = "Describe en español brevemente el dibujo"
 
             response = openai.chat.completions.create(
                 model="gpt-4o-mini",
@@ -99,7 +111,7 @@ if canvas_result.image_data is not None and api_key and analyze_button:
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": prompt_text},
+                            {"type": "text", "text": prompt},
                             {
                                 "type": "image_url",
                                 "image_url": {
@@ -109,18 +121,16 @@ if canvas_result.image_data is not None and api_key and analyze_button:
                         ],
                     }
                 ],
-                max_tokens=500,
+                max_tokens=300,
             )
 
-            if response.choices[0].message.content is not None:
-                full_response += response.choices[0].message.content
-                message_placeholder.markdown(full_response + "▌")
+            resultado = response.choices[0].message.content
 
-            message_placeholder.markdown(full_response)
+            # Mostrar resultado bonito
+            st.success("✅ Resultado:")
+            st.markdown(f"### 🧾 {resultado}")
 
         except Exception as e:
-            st.error(f"Ocurrió un error: {e}")
+            st.error(f"❌ Error: {e}")
 
-else:
-    if not api_key:
-        st.warning("Por favor ingresa tu API key.")
+# ---------------- VALIDACIONES ----------------
