@@ -134,3 +134,5 @@ if canvas_result.image_data is not None and api_key and analyze_button:
             st.error(f"❌ Error: {e}")
 
 # ---------------- VALIDACIONES ----------------
+elif not api_key:
+    st.warning("⚠️ Ingresa tu API Key para usar la IA")
